@@ -1,0 +1,187 @@
+{
+  "server": {
+    "id": 1,
+    "name": "server-name",
+    "host": "0.0.0.0",
+    "queryPort": 17777,
+    "rconPort": 19999,
+    "rconPassword": "rcon-password",
+    "reloadCommandsOnStartup": true,
+    "logReaderMode": "tail",
+    "filename": "console.log",
+    "backfill": true,
+    "logDir": "path/to/logs/file",
+    "sftp": {
+      "host": "0.0.0.0",
+      "port": 21,
+      "username": "root",
+      "password": "password"
+    },
+    "ftp": {
+      "host": "xxx.xxx.xxx.xxx",
+      "port": 21,
+      "user": "FTP Username",
+      "password": "FTP Password"
+    }
+  },
+  "customParsers": {
+    "wcs-commands": {
+      "enabled": false,
+      "logDir": "/path/to/WCS_Commands/events",
+      "fileName": "events.txt"
+    }
+  },
+  "consoleLogLevel": "info",
+  "outputLogLevel": "info",
+  "connectors": {
+    "discord": {
+      "token": "",
+      "clientId": "",
+      "guildId": ""
+    },
+    "mysql": {
+      "enabled": false,
+      "host": "127.0.0.1",
+      "port": 3306,
+      "username": "username",
+      "password": "password",
+      "database": "name-of-database",
+      "dialect": "mysql"
+    }
+  },
+  "roles": {
+    "roleName1": "discord RoleID",
+    "roleName2": "discord RoleID",
+    "roleName3": "discord RoleID"
+  },
+  "roleLevels": {
+    "1": [
+      "roleName1"
+    ],
+    "2": [
+      "roleName2"
+    ],
+    "3": [
+      "roleName3"
+    ]
+  },
+  "commands": [
+    {
+      "command": "whois",
+      "enabled": false,
+      "commandLevel": 3
+    },
+    {
+      "command": "stats",
+      "enabled": false,
+      "commandLevel": 3,
+      "servers": 1,
+      "statsTable": "Same_as_DBLogStats_Plugin"
+    },
+    {
+      "command": "voteinfo",
+      "commandLevel": 3,
+      "enabled": false
+    },
+    {
+      "command": "rcon",
+      "enabled": false,
+      "commandLevel": 3,
+      "ban": 3,
+      "shutdown": 3,
+      "restart": 3,
+      "kick": 3
+    },
+    {
+      "command": "seed",
+      "enabled": true,
+      "commandLevel": 3,
+      "reset": 1,
+      "playerlist": 2,
+      "mode": 2,
+      "setchannel": 2,
+      "configModify": 1
+    }
+  ],
+  "plugins": [
+   {
+      "plugin": "SeedTrackerBasic",
+      "enabled": true,
+      "interval": 15,
+      "seedStart": 5,
+      "seedEnd": 40,
+      "playerList": [],
+      "playerListMode": "blacklist",
+      "playerListLimit": 25,
+      "lookbackDays": 30,
+      "purgeDays": 45,
+      "leaderboardChannelId": "",
+      "leaderboardMessageId": ""
+    },
+    {
+      "plugin": "LogVoteKickVictim",
+      "enabled": false,
+      "channel": ""
+    },
+    {
+      "plugin": "LogVoteKickStart",
+      "enabled": false,
+      "channel": ""
+    },
+    {
+      "plugin": "DBLog",
+      "enabled": false,
+      "interval": 5
+    },
+    {
+      "plugin": "VoteLogs",
+      "enabled": false
+    },
+    {
+      "plugin": "DBLogStats",
+      "enabled": false,
+      "interval": 5,
+      "path": "C:/path/to/saves/profile/.save/playersave",
+      "tableName": ""
+    },
+    {
+      "plugin": "AltChecker",
+      "enabled": false,
+      "channel": "",
+      "logAlts": true,
+      "logOnlyOnline": false
+    },
+    {
+      "plugin": "ServerStatus",
+      "enabled": true,
+      "channel": "",
+      "messageID": "",
+      "interval": 1,
+      "showFPS": false,
+      "showMemoryUsage": false,
+      "discordBotStatus": false,
+      "embed": {
+        "title": "Arma Reforger Server Status",
+        "color": "#00FF00",
+        "footer": "ReforgerJS",
+        "thumbnail": false,
+        "thumbnailURL": "https://IMAGE_URL_HERE.png"
+      }
+    },
+    {
+      "plugin": "WCS_DBLog",
+      "enabled": false
+    },
+    {
+      "plugin": "WCS_DBEvents",
+      "enabled": false
+    },
+    {
+      "plugin": "WCS_TKAutokick",
+      "enabled": false,
+      "teamkillLimit": 4,
+      "timeWindowMinutes": 20,
+      "warningMessage": "Watch your fire, Teamkilling will result in your removal from the server | THIS WARNING NEEDS GM TOOLS MOD INSTALLED"
+    }
+  ]
+}
