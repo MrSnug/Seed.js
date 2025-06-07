@@ -94,38 +94,25 @@
     },
     {
       "command": "seed",
-      "enabled": false,
-      "commandLevel": 3
-    },
-    {
-      "command": "resetseed",
-      "enabled": false,
-      "commandLevel": 3
-    },
-    {
-      "command": "seedignore",
-      "enabled": false,
-      "commandLevel": 2
-    },
-     {
-      "command": "seedunignore",
-      "enabled": false,
-      "commandLevel": 2
-    },
-    {
-      "command": "setleaderboard",
-      "enabled": false,
-      "commandLevel": 2
+      "enabled": true,
+      "commandLevel": 3,
+      "reset": 1,
+      "playerlist": 2,
+      "mode": 2,
+      "setchannel": 2,
+      "configModify": 1
     }
   ],
   "plugins": [
-    {
+   {
       "plugin": "SeedTrackerBasic",
-      "enabled": false,
+      "enabled": true,
       "interval": 15,
       "seedStart": 5,
       "seedEnd": 40,
-      "seedIgnore": [],
+      "playerList": [],
+      "playerListMode": "blacklist",
+      "playerListLimit": 25,
       "lookbackDays": 30,
       "purgeDays": 45,
       "leaderboardChannelId": "",
