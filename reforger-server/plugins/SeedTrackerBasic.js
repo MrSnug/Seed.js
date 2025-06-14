@@ -24,6 +24,7 @@ class SeedTrackerBasic {
     this.leaderboardMessageId = null;
     this.lookbackDays = 30;
     this.purgeDays = 45;
+    this.displayCount = 10; // NEW: Configurable display count for leaderboard
     
     // State management
     this.lastLeaderboardJson = null;
@@ -86,6 +87,11 @@ class SeedTrackerBasic {
       if (typeof pluginConfig.purgeDays === "number" && pluginConfig.purgeDays > 0) {
         this.purgeDays = pluginConfig.purgeDays;
       }
+      
+      // NEW: Load display count configuration
+      if (typeof pluginConfig.displayCount === "number" && pluginConfig.displayCount > 0) {
+        this.displayCount = Math.min(pluginConfig.displayCount, 25); // Cap at 25 for Discord embed limits
+      }
 
       // Load new player list system
       if (Array.isArray(pluginConfig.playerList)) {
@@ -123,6 +129,7 @@ class SeedTrackerBasic {
       this.isInitialized = true;
       logger.info(`[${this.name}] Initialized successfully with ${this.intervalMinutes}min intervals, seeding range ${this.seedStart}-${this.seedEnd} players.`);
       logger.info(`[${this.name}] Player list mode: ${this.playerListMode}, limit: ${this.playerListLimit}, current entries: ${this.playerList.length}`);
+      logger.info(`[${this.name}] Leaderboard will display top ${this.displayCount} players`);
     } catch (error) {
       logger.error(`[${this.name}] Error during initialization: ${error.message}`);
     }
@@ -284,15 +291,16 @@ class SeedTrackerBasic {
     if (!this.discordClient || !this.leaderboardChannelId) return;
 
     try {
+      // MODIFIED: Use configurable display count instead of hardcoded 10
       const [rows] = await process.mysqlPool.query(
         `
         SELECT playerName, totalMinutes
         FROM seeder_totals
         WHERE lastSeen >= NOW() - INTERVAL ? DAY
         ORDER BY totalMinutes DESC
-        LIMIT 10;
+        LIMIT ?;
         `,
-        [this.lookbackDays]
+        [this.lookbackDays, this.displayCount]
       );
 
       if (!rows || rows.length === 0) return;
@@ -304,9 +312,9 @@ class SeedTrackerBasic {
       if (newJson === this.lastLeaderboardJson) return;
       this.lastLeaderboardJson = newJson;
 
-      // Build embed
+      // Build embed - MODIFIED: Use configurable display count in title
       const embed = new EmbedBuilder()
-        .setTitle(`🏆 Top 10 Seeders (Last ${this.lookbackDays} Days)`)
+        .setTitle(`🏆 Top ${this.displayCount} Seeders (Last ${this.lookbackDays} Days)`)
         .setColor(0x00ae86)
         .setTimestamp();
 
@@ -390,6 +398,49 @@ class SeedTrackerBasic {
     } catch (error) {
       logger.error(`[${this.name}] Error purging old entries: ${error.message}`);
     }
+  }
+
+  // NEW: Method to add player to list (for button integration)
+  async addPlayerToList(playerUID) {
+    const normalizedUID = playerUID.toLowerCase();
+    
+    if (this.playerList.includes(normalizedUID)) {
+      return { success: false, message: `Player already in ${this.playerListMode}` };
+    }
+    
+    if (this.playerList.length >= this.playerListLimit) {
+      return { success: false, message: `${this.playerListMode} is full (${this.playerListLimit} max)` };
+    }
+    
+    this.playerList.push(normalizedUID);
+    
+    // Update config
+    const pluginConfig = this.config.plugins.find(p => p.plugin === 'SeedTrackerBasic');
+    if (pluginConfig) {
+      pluginConfig.playerList = this.playerList;
+    }
+    
+    return { success: true, message: `Player added to ${this.playerListMode}` };
+  }
+
+  // NEW: Method to remove player from list (for button integration)
+  async removePlayerFromList(playerUID) {
+    const normalizedUID = playerUID.toLowerCase();
+    const index = this.playerList.indexOf(normalizedUID);
+    
+    if (index === -1) {
+      return { success: false, message: `Player not in ${this.playerListMode}` };
+    }
+    
+    this.playerList.splice(index, 1);
+    
+    // Update config
+    const pluginConfig = this.config.plugins.find(p => p.plugin === 'SeedTrackerBasic');
+    if (pluginConfig) {
+      pluginConfig.playerList = this.playerList;
+    }
+    
+    return { success: true, message: `Player removed from ${this.playerListMode}` };
   }
 
   async cleanup() {

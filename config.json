@@ -124,7 +124,8 @@
       "lookbackDays": 30,
       "purgeDays": 45,
       "leaderboardChannelId": "",
-      "leaderboardMessageId": ""
+      "leaderboardMessageId": "",
+      "displayCount": "10"
     },
     {
       "plugin": "LogVoteKickVictim",
