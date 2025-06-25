@@ -1,5 +1,4 @@
 // reforger-server/commandFunctions/seed.js
-// Updated to support blacklist/whitelist system
 
 const { EmbedBuilder } = require('discord.js');
 const fs = require('fs');
@@ -124,6 +123,27 @@ module.exports = async (interaction, serverInstance, discordClient, extraData = 
         }
         await handleReset(interaction, serverInstance);
         break;
+
+      // NEW: Streak tracking
+      case 'streaks':
+        await handleStreaks(interaction, serverInstance);
+        break;
+
+      // NEW: Analytics
+      case 'analytics':
+        if (!hasPermissionForSubcommand('analytics') && getUserMaxRoleLevel(userRoles) < 2) {
+          return interaction.editReply({
+            content: "You do not have permission to view detailed analytics.",
+            ephemeral: true,
+          });
+        }
+        await handleAnalytics(interaction, serverInstance);
+        break;
+
+      // NEW: Smart recommendations
+      case 'recommendations':
+        await handleRecommendations(interaction, serverInstance);
+        break;
       
       default:
         return interaction.editReply({
@@ -188,6 +208,219 @@ async function handleLeaderboard(interaction, serverInstance) {
   } catch (error) {
     logger.error(`[Seed Leaderboard] Database error: ${error.message}`);
     await interaction.editReply('An error occurred while fetching the leaderboard data.');
+  }
+}
+
+// NEW: Handle /seed streaks
+async function handleStreaks(interaction, serverInstance) {
+  const pool = process.mysqlPool || serverInstance.mysqlPool;
+  if (!pool) {
+    await interaction.editReply('Database connection is not initialized.');
+    return;
+  }
+
+  const plugin = process.seedTracker;
+  if (!plugin) {
+    await interaction.editReply('⚠️ SeedTracker plugin is not initialized.');
+    return;
+  }
+
+  const limit = interaction.options.getInteger('limit') || 10;
+
+  try {
+    const streaks = await plugin.getStreakLeaderboard(limit);
+
+    if (!streaks || streaks.length === 0) {
+      await interaction.editReply('No streak data found.');
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🔥 Top ${limit} Seeding Streaks`)
+      .setColor(0xff6b35)
+      .setTimestamp()
+      .setFooter({ text: 'SeedTracker - ReforgerJS' });
+
+    streaks.forEach((streak, idx) => {
+      const totalHours = streak.totalMinutes ? (streak.totalMinutes / 60).toFixed(1) : '0.0';
+      const lastSeen = streak.lastSeededDate ? new Date(streak.lastSeededDate).toLocaleDateString() : 'Never';
+      
+      embed.addFields({
+        name: `${idx + 1}. ${streak.playerName}`,
+        value: `🔥 Current: **${streak.currentStreak} days**\n` +
+               `🏆 Best: ${streak.longestStreak} days\n` +
+               `📅 Total Days: ${streak.totalSeedingDays}\n` +
+               `⏱️ Total Hours: ${totalHours}\n` +
+               `📊 Last Seen: ${lastSeen}`,
+        inline: true
+      });
+    });
+
+    await interaction.editReply({ embeds: [embed] });
+    logger.info(`[Seed Streaks] Successfully displayed streak leaderboard to ${interaction.user.username}`);
+  } catch (error) {
+    logger.error(`[Seed Streaks] Error: ${error.message}`);
+    await interaction.editReply('An error occurred while fetching streak data.');
+  }
+}
+
+// NEW: Handle /seed analytics
+async function handleAnalytics(interaction, serverInstance) {
+  const pool = process.mysqlPool || serverInstance.mysqlPool;
+  if (!pool) {
+    await interaction.editReply('Database connection is not initialized.');
+    return;
+  }
+
+  const plugin = process.seedTracker;
+  if (!plugin) {
+    await interaction.editReply('⚠️ SeedTracker plugin is not initialized.');
+    return;
+  }
+
+  const days = interaction.options.getInteger('days') || 7;
+
+  try {
+    const analytics = await plugin.getAnalytics(days);
+
+    if (!analytics) {
+      await interaction.editReply('Unable to fetch analytics data.');
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle(`📊 Seeding Analytics (Last ${days} Days)`)
+      .setColor(0x4a90e2)
+      .setTimestamp()
+      .setFooter({ text: 'SeedTracker - ReforgerJS' });
+
+    // Peak seeding hours
+    if (analytics.peakHours && analytics.peakHours.length > 0) {
+      const peakHoursText = analytics.peakHours
+        .slice(0, 3)
+        .map(h => `${h.hour}:00 (${h.seedingHours}h active, avg ${h.avgPlayers.toFixed(1)} players)`)
+        .join('\n');
+      
+      embed.addFields({
+        name: '⏰ Peak Seeding Hours',
+        value: peakHoursText || 'No data available',
+        inline: false
+      });
+    }
+
+    // Most effective seeders
+    if (analytics.effectiveSeeders && analytics.effectiveSeeders.length > 0) {
+      const seedersText = analytics.effectiveSeeders
+        .slice(0, 5)
+        .map((s, idx) => `${idx + 1}. ${s.playerName} - ${(s.totalMinutes / 60).toFixed(1)}h (${s.activeDays} days)`)
+        .join('\n');
+      
+      embed.addFields({
+        name: '🌟 Most Effective Seeders',
+        value: seedersText || 'No data available',
+        inline: false
+      });
+    }
+
+    // Success rate
+    if (analytics.successRate) {
+      const rate = analytics.successRate.totalSeedingHours > 0 
+        ? ((analytics.successRate.successfulSeedingHours / analytics.successRate.totalSeedingHours) * 100).toFixed(1)
+        : 0;
+      
+      embed.addFields({
+        name: '📈 Seeding Success Rate',
+        value: `${rate}% (${analytics.successRate.successfulSeedingHours}/${analytics.successRate.totalSeedingHours} hours led to server growth)`,
+        inline: false
+      });
+    }
+
+    // Population trends
+    if (analytics.trends && analytics.trends.length > 0) {
+      const latestTrend = analytics.trends[0];
+      const avgGrowth = analytics.trends.length > 1 
+        ? ((latestTrend.avgPlayers - analytics.trends[analytics.trends.length - 1].avgPlayers) / days).toFixed(1)
+        : 0;
+      
+      embed.addFields({
+        name: '📊 Recent Trends',
+        value: `Avg daily players: ${latestTrend.avgPlayers.toFixed(1)}\n` +
+               `Peak players: ${latestTrend.peakPlayers}\n` +
+               `Daily growth: ${avgGrowth > 0 ? '+' : ''}${avgGrowth} players/day`,
+        inline: false
+      });
+    }
+
+    await interaction.editReply({ embeds: [embed] });
+    logger.info(`[Seed Analytics] Successfully displayed analytics to ${interaction.user.username}`);
+  } catch (error) {
+    logger.error(`[Seed Analytics] Error: ${error.message}`);
+    await interaction.editReply('An error occurred while fetching analytics data.');
+  }
+}
+
+// NEW: Handle /seed recommendations
+async function handleRecommendations(interaction, serverInstance) {
+  const plugin = process.seedTracker;
+  if (!plugin) {
+    await interaction.editReply('⚠️ SeedTracker plugin is not initialized.');
+    return;
+  }
+
+  try {
+    const recommendations = await plugin.getSmartRecommendations();
+
+    if (!recommendations || recommendations.length === 0) {
+      await interaction.editReply('No recommendations available at this time.');
+      return;
+    }
+
+    const embed = new EmbedBuilder()
+      .setTitle('🧠 Smart Seeding Recommendations')
+      .setColor(0x9b59b6)
+      .setTimestamp()
+      .setFooter({ text: 'SeedTracker AI - ReforgerJS' });
+
+    recommendations.forEach(rec => {
+      const confidenceEmoji = rec.confidence === 'high' ? '🟢' : rec.confidence === 'medium' ? '🟡' : '🔴';
+      
+      embed.addFields({
+        name: `${confidenceEmoji} ${rec.title}`,
+        value: rec.description,
+        inline: false
+      });
+    });
+
+    // Add current server status
+    const currentPlayers = serverInstance?.players?.length || 0;
+    const seedStart = plugin.seedStart;
+    const seedEnd = plugin.seedEnd;
+    
+    let statusColor = '🔴';
+    let statusText = 'Not in seeding range';
+    
+    if (currentPlayers < seedStart) {
+      statusColor = '🟡';
+      statusText = 'Needs seeding';
+    } else if (currentPlayers >= seedStart && currentPlayers <= seedEnd) {
+      statusColor = '🟢';
+      statusText = 'Currently seeding';
+    } else {
+      statusColor = '🔵';
+      statusText = 'Server full';
+    }
+
+    embed.addFields({
+      name: '📊 Current Server Status',
+      value: `${statusColor} ${currentPlayers} players online - ${statusText}`,
+      inline: false
+    });
+
+    await interaction.editReply({ embeds: [embed] });
+    logger.info(`[Seed Recommendations] Successfully displayed recommendations to ${interaction.user.username}`);
+  } catch (error) {
+    logger.error(`[Seed Recommendations] Error: ${error.message}`);
+    await interaction.editReply('An error occurred while generating recommendations.');
   }
 }
 

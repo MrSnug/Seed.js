@@ -137,20 +137,9 @@ async function executeWhois(interaction, serverInstance, discordClient, extraDat
                 // Add seed tracker buttons for the first player (if single result or first of multiple)
                 if (index === 0 && seedEnabled && player.playerUID) {
                     const playerUID = player.playerUID;
-                    const playerName = player.playerName || 'Unknown';
                     const isInList = seedTracker.playerList.includes(playerUID.toLowerCase());
                     const mode = seedTracker.playerListMode;
                     
-                    // Add seed tracker status to player info
-                    const listStatus = isInList ? `✅ In ${mode}` : `❌ Not in ${mode}`;
-                    const trackingStatus = seedTracker.shouldTrackPlayer(playerUID) ? '🟢 Being Tracked' : '🔴 Not Tracked';
-                    
-                    currentEmbed.fields.push({
-                        name: '🌱 Seed Tracker Status',
-                        value: `${trackingStatus}\n`,
-                        inline: false
-                    });
-
                     // Create action buttons
                     const actionRow = new ActionRowBuilder();
                     
@@ -180,7 +169,7 @@ async function executeWhois(interaction, serverInstance, discordClient, extraDat
                             .setCustomId(`whois-info-${playerUID}`)
                             .setLabel('Seed Info')
                             .setStyle(ButtonStyle.Secondary)
-                            .setEmoji('ℹ️')
+                            .setEmoji('🌱')
                     );
 
                     components.push(actionRow);
@@ -322,37 +311,69 @@ async function handleButton(interaction, serverInstance, discordClient, extraDat
                 break;
 
             case 'info':
-                // Show detailed seed tracker info for this player
+                // Enhanced seed tracker info with comprehensive data
                 const isInList = seedTracker.playerList.includes(playerUID.toLowerCase());
                 const mode = seedTracker.playerListMode;
                 const isTracked = seedTracker.shouldTrackPlayer(playerUID);
                 
-                // Get seeding stats if available
-                let seedingStats = 'No data available';
+                // Get comprehensive player data from database
+                let playerData = {
+                    playerName: 'Unknown Player',
+                    playerUID: playerUID,
+                    beGUID: 'Not Found',
+                    lastSeen: 'Never',
+                    seedingHours: 0,
+                    seedingMinutes: 0
+                };
+                
                 try {
                     const pool = process.mysqlPool || serverInstance.mysqlPool;
                     if (pool) {
-                        const [rows] = await pool.query(
-                            `SELECT totalMinutes, lastSeen FROM seeder_totals WHERE playerUID = ?`,
+                        // Get basic player info
+                        const [playerRows] = await pool.query(
+                            'SELECT playerName, beGUID FROM players WHERE playerUID = ? LIMIT 1',
+                            [playerUID]
+                        );
+                        if (playerRows.length > 0) {
+                            playerData.playerName = playerRows[0].playerName || 'Unknown Player';
+                            playerData.beGUID = playerRows[0].beGUID || 'Not Found';
+                        }
+                        
+                        // Get seeding stats
+                        const [seedRows] = await pool.query(
+                            'SELECT totalMinutes, lastSeen FROM seeder_totals WHERE playerUID = ?',
                             [playerUID.toLowerCase()]
                         );
-                        if (rows.length > 0) {
-                            const hours = (rows[0].totalMinutes / 60).toFixed(2);
-                            const lastSeen = new Date(rows[0].lastSeen).toLocaleDateString();
-                            seedingStats = `${hours} hours (${rows[0].totalMinutes} minutes)\nLast seen: ${lastSeen}`;
+                        if (seedRows.length > 0) {
+                            playerData.seedingMinutes = seedRows[0].totalMinutes || 0;
+                            playerData.seedingHours = (playerData.seedingMinutes / 60).toFixed(2);
+                            playerData.lastSeen = seedRows[0].lastSeen ? 
+                                new Date(seedRows[0].lastSeen).toLocaleDateString() : 'Never';
                         }
                     }
-                } catch (statsError) {
-                    logger.warn(`[Whois Button] Could not fetch seeding stats: ${statsError.message}`);
+                } catch (dbError) {
+                    logger.warn(`[Whois Button] Could not fetch comprehensive player data: ${dbError.message}`);
+                }
+
+                // Determine watchlist status
+                let watchlistStatus;
+                if (mode === 'blacklist') {
+                    watchlistStatus = isInList ? '🔴 On Blacklist' : '✅ Not on Blacklist';
+                } else {
+                    watchlistStatus = isInList ? '✅ On Whitelist' : '🔴 Not on Whitelist';
                 }
 
                 const infoEmbed = new EmbedBuilder()
-                    .setTitle('🌱 Seed Tracker Information')
+                    .setTitle('🌱 Comprehensive Seed Tracker Information')
                     .setColor(isTracked ? 0x00ff00 : 0xff0000)
                     .addFields(
-                        { name: 'Player', value: `${playerName}\n\`${playerUID}\``, inline: false },
-                        { name: 'Tracking Status', value: isTracked ? '🟢 Being Tracked' : '🔴 Not Tracked', inline: true },
-                        { name: 'Seeding Statistics', value: seedingStats, inline: false },
+                        { name: 'Player Name', value: playerData.playerName, inline: true },
+                        { name: 'Player UUID', value: `\`${playerData.playerUID}\``, inline: true },
+                        { name: 'BE GUID', value: `\`${playerData.beGUID}\``, inline: true },
+                        { name: 'Last Seen', value: playerData.lastSeen, inline: true },
+                        { name: 'Hours Tracked in Seeding', value: `${playerData.seedingHours} hours (${playerData.seedingMinutes} minutes)`, inline: true },
+                        { name: 'Watchlist Status', value: watchlistStatus, inline: true },
+                        { name: 'Currently Being Tracked', value: isTracked ? '🟢 Yes' : '🔴 No', inline: false }
                     )
                     .setTimestamp()
                     .setFooter({ text: 'SeedTracker - ReforgerJS' });

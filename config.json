@@ -103,7 +103,9 @@
       "playerlist": 2,
       "mode": 2,
       "setchannel": 2,
-      "configModify": 1
+      "configModify": 1,
+      "analytics": 2,
+      "alerts": 2
     },
     {
       "command": "reload",
