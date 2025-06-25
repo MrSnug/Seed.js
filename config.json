@@ -127,7 +127,17 @@
       "purgeDays": 45,
       "leaderboardChannelId": "",
       "leaderboardMessageId": "",
-      "displayCount": "10"
+      "displayCount": "10",
+      "seedingAlerts": {
+        "enabled": true,
+        "alertChannel": "alerts-channel-id",
+        "thresholds": {
+          "critical": 5,
+          "low": 15
+        },
+    "cooldown": 30,
+    "pingRoles": ["admin-role-id", "other-role-id"]
+  }
     },
     {
       "plugin": "LogVoteKickVictim",
